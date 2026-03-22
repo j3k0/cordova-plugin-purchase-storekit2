@@ -65,7 +65,7 @@ import StoreKit
     }
 
     @objc func autoFinish(_ command: CDVInvokedUrlCommand) {
-        // Stored for later use
+        // No-op for now — SK2 transaction finishing is handled explicitly by the JS bridge.
         let result = CDVPluginResult(status: CDVCommandStatus_OK)
         commandDelegate.send(result, callbackId: command.callbackId)
     }

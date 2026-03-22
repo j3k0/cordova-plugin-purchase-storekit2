@@ -21,7 +21,7 @@
     "iaptic"
   ],
   "license": "MIT",
-  "main": "index.js",
+  "main": "www/storekit2-plugin.js",
   "author": "Jean-Christophe Hoelt <hoelt@fovea.cc>",
   "private": false
 }
