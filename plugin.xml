@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
+        id="cordova-plugin-purchase-storekit2"
+        version="1.0.0">
+
+    <name>StoreKit 2 Adapter for cordova-plugin-purchase</name>
+
+    <description>
+        StoreKit 2 native implementation for cordova-plugin-purchase.
+        When installed, the Apple AppStore adapter automatically uses StoreKit 2
+        on iOS 15+ devices.
+    </description>
+
+    <license>MIT</license>
+
+    <js-module src="www/storekit2-plugin.js" name="CdvPurchaseStoreKit2">
+        <clobbers target="CdvPurchaseStoreKit2" />
+    </js-module>
+
+    <platform name="ios">
+        <config-file target="config.xml" parent="/*">
+            <feature name="StoreKit2Plugin">
+                <param name="ios-package" value="StoreKit2Plugin" />
+                <param name="onload" value="true" />
+            </feature>
+        </config-file>
+
+        <source-file src="src/ios/StoreKit2Plugin.swift" />
+        <preference name="SwiftVersion" value="5.5" />
+
+        <framework src="StoreKit.framework" />
+    </platform>
+</plugin>

@@ -1,0 +1,27 @@
+{
+  "name": "cordova-plugin-purchase-storekit2",
+  "version": "1.0.0",
+  "description": "StoreKit 2 adapter for cordova-plugin-purchase",
+  "cordova": {
+    "id": "cordova-plugin-purchase-storekit2",
+    "platforms": ["ios"]
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/j3k0/cordova-plugin-purchase-storekit2.git"
+  },
+  "keywords": [
+    "cordova",
+    "storekit2",
+    "storekit",
+    "purchase",
+    "ecosystem:cordova",
+    "cordova-ios",
+    "fovea",
+    "iaptic"
+  ],
+  "license": "MIT",
+  "main": "index.js",
+  "author": "Jean-Christophe Hoelt <hoelt@fovea.cc>",
+  "private": false
+}
