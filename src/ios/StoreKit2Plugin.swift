@@ -355,7 +355,13 @@ import StoreKit
             "priceMicros": NSDecimalNumber(decimal: product.price)
                 .multiplying(by: 1000000).int64Value,
             "currency": product.priceFormatStyle.currencyCode,
-            "countryCode": product.priceFormatStyle.locale.region?.identifier ?? "",
+            "countryCode": {
+                if #available(iOS 16.0, *) {
+                    return product.priceFormatStyle.locale.region?.identifier ?? ""
+                } else {
+                    return Locale.current.regionCode ?? ""
+                }
+            }(),
         ]
 
         if let subscription = product.subscription {
@@ -412,7 +418,7 @@ import StoreKit
         case .payAsYouGo: return "PayAsYouGo"
         case .payUpFront: return "PayUpFront"
         case .freeTrial: return "FreeTrial"
-        @unknown default: return "PayAsYouGo"
+        default: return "PayAsYouGo"
         }
     }
 
