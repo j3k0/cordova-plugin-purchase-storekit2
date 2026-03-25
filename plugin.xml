@@ -13,6 +13,11 @@
 
     <license>MIT</license>
 
+    <!-- Requires cordova-ios 7+ for Swift 5.5 support (tested with cordova-ios 8) -->
+    <engines>
+        <engine name="cordova-ios" version=">=7.0.0" />
+    </engines>
+
     <js-module src="www/storekit2-plugin.js" name="CdvPurchaseStoreKit2">
         <clobbers target="CdvPurchaseStoreKit2" />
     </js-module>
@@ -26,7 +31,7 @@
         </config-file>
 
         <source-file src="src/ios/StoreKit2Plugin.swift" />
-        <preference name="SwiftVersion" value="5.5" />
+        <preference name="SwiftVersion" default="5.5" />
 
         <framework src="StoreKit.framework" />
     </platform>
