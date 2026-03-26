@@ -44,8 +44,10 @@ import StoreKit
         let jwsRepresentation = result.jwsRepresentation
         switch result {
         case .verified(let transaction):
+            log("Transaction.updates: verified id=\(transaction.id) product=\(transaction.productID) expires=\(String(describing: transaction.expirationDate))")
             await emitTransactionUpdate(transaction, state: "PaymentTransactionStatePurchased", jwsRepresentation: jwsRepresentation)
-        case .unverified(let transaction, _):
+        case .unverified(let transaction, let error):
+            log("Transaction.updates: unverified id=\(transaction.id) product=\(transaction.productID) error=\(error)")
             await emitTransactionUpdate(transaction, state: "PaymentTransactionStatePurchased", jwsRepresentation: jwsRepresentation)
         }
     }
@@ -142,6 +144,8 @@ import StoreKit
             return
         }
 
+        log("purchase: productId=\(productId) username=\(applicationUsername ?? "nil") hasDiscount=\(discountData != nil)")
+
         Task {
             do {
                 var options: Set<Product.PurchaseOption> = []
@@ -172,6 +176,7 @@ import StoreKit
                     ))
                 }
 
+                log("purchase: calling product.purchase() for \(productId)")
                 let purchaseResult = try await product.purchase(options: options)
 
                 switch purchaseResult {
@@ -179,9 +184,11 @@ import StoreKit
                     let jwsRepresentation = verification.jwsRepresentation
                     switch verification {
                     case .verified(let transaction):
+                        log("purchase: success verified id=\(transaction.id) product=\(transaction.productID) expires=\(String(describing: transaction.expirationDate))")
                         self.unfinishedTransactions[String(transaction.id)] = transaction
                         await self.emitTransactionUpdate(transaction, state: "PaymentTransactionStatePurchased", jwsRepresentation: jwsRepresentation)
-                    case .unverified(let transaction, _):
+                    case .unverified(let transaction, let error):
+                        log("purchase: success unverified id=\(transaction.id) product=\(transaction.productID) error=\(error)")
                         self.unfinishedTransactions[String(transaction.id)] = transaction
                         await self.emitTransactionUpdate(transaction, state: "PaymentTransactionStatePurchased", jwsRepresentation: jwsRepresentation)
                     }
@@ -189,22 +196,26 @@ import StoreKit
                     self.commandDelegate.send(result, callbackId: command.callbackId)
 
                 case .pending:
+                    log("purchase: pending for \(productId)")
                     self.emitSimpleUpdate(productId: productId, state: "PaymentTransactionStateDeferred")
                     let result = CDVPluginResult(status: CDVCommandStatus_OK)
                     self.commandDelegate.send(result, callbackId: command.callbackId)
 
                 case .userCancelled:
+                    log("purchase: userCancelled for \(productId)")
                     self.emitPurchaseFailed(productId: productId,
                         errorCode: 6777006, message: "Payment cancelled")
                     let result = CDVPluginResult(status: CDVCommandStatus_OK)
                     self.commandDelegate.send(result, callbackId: command.callbackId)
 
                 @unknown default:
+                    log("purchase: unknown result for \(productId)")
                     let result = CDVPluginResult(status: CDVCommandStatus_ERROR,
                         messageAs: "Unknown purchase result")
                     self.commandDelegate.send(result, callbackId: command.callbackId)
                 }
             } catch {
+                log("purchase: error for \(productId): \(error.localizedDescription)")
                 self.emitPurchaseFailed(productId: productId,
                     errorCode: 6777010, message: error.localizedDescription)
                 let result = CDVPluginResult(status: CDVCommandStatus_ERROR,
@@ -224,9 +235,11 @@ import StoreKit
             return
         }
 
+        log("finishTransaction: id=\(transactionId) found=\(unfinishedTransactions[transactionId] != nil)")
         if let transaction = unfinishedTransactions[transactionId] {
             Task {
                 await transaction.finish()
+                log("finishTransaction: finished id=\(transactionId)")
                 self.unfinishedTransactions.removeValue(forKey: transactionId)
                 let result = CDVPluginResult(status: CDVCommandStatus_OK)
                 self.commandDelegate.send(result, callbackId: command.callbackId)
@@ -288,6 +301,10 @@ import StoreKit
     // MARK: - Process Pending Transactions
 
     @objc func processPendingTransactions(_ command: CDVInvokedUrlCommand) {
+        log("processPendingTransactions: \(pendingTransactionUpdates.count) pending")
+        for update in pendingTransactionUpdates {
+            log("  pending: id=\(update.transactionId) product=\(update.productId) state=\(update.state) expires=\(update.expirationDate)")
+        }
         // Emit any pending transaction updates that arrived before JS was ready
         for update in pendingTransactionUpdates {
             evalTransactionUpdated(
