@@ -15,7 +15,7 @@ import StoreKit
     private var pendingTransactionUpdates: [(state: String, errorCode: Int, errorText: String,
         transactionId: String, productId: String, transactionReceipt: String,
         originalTransactionId: String, transactionDate: String, discountId: String,
-        expirationDate: String, jwsRepresentation: String)] = []
+        expirationDate: String, jwsRepresentation: String, quantity: Int)] = []
 
     // MARK: - Lifecycle
 
@@ -313,7 +313,8 @@ import StoreKit
                 transactionReceipt: update.transactionReceipt,
                 originalTransactionId: update.originalTransactionId,
                 transactionDate: update.transactionDate, discountId: update.discountId,
-                expirationDate: update.expirationDate, jwsRepresentation: update.jwsRepresentation)
+                expirationDate: update.expirationDate, jwsRepresentation: update.jwsRepresentation,
+                quantity: update.quantity)
         }
         pendingTransactionUpdates.removeAll()
         evalJs("window.storekit2.lastTransactionUpdated()")
@@ -454,6 +455,7 @@ import StoreKit
         let expirationDate = transaction.expirationDate.map {
             String(Int($0.timeIntervalSince1970 * 1000))
         } ?? ""
+        let quantity = transaction.quantity
 
         self.unfinishedTransactions[transactionId] = transaction
 
@@ -466,7 +468,8 @@ import StoreKit
                 transactionDate: String(Int(transactionDate)),
                 discountId: discountId,
                 expirationDate: expirationDate,
-                jwsRepresentation: jwsRepresentation)
+                jwsRepresentation: jwsRepresentation,
+                quantity: quantity)
         } else {
             pendingTransactionUpdates.append((
                 state: state, errorCode: 0, errorText: "",
@@ -476,7 +479,8 @@ import StoreKit
                 transactionDate: String(Int(transactionDate)),
                 discountId: discountId,
                 expirationDate: expirationDate,
-                jwsRepresentation: jwsRepresentation))
+                jwsRepresentation: jwsRepresentation,
+                quantity: quantity))
         }
     }
 
@@ -503,7 +507,7 @@ import StoreKit
         state: String, errorCode: Int, errorText: String,
         transactionId: String, productId: String, transactionReceipt: String,
         originalTransactionId: String, transactionDate: String, discountId: String,
-        expirationDate: String, jwsRepresentation: String
+        expirationDate: String, jwsRepresentation: String, quantity: Int = 1
     ) {
         let args = [
             jsonEscape(state),
@@ -517,6 +521,7 @@ import StoreKit
             jsonEscape(discountId),
             jsonEscape(expirationDate),
             jsonEscape(jwsRepresentation),
+            "\(quantity)",
         ].joined(separator: ",")
         evalJs("window.storekit2.transactionUpdated(\(args))")
     }
