@@ -502,7 +502,7 @@ import StoreKit
         let expirationDate = transaction.expirationDate.map {
             String(Int($0.timeIntervalSince1970 * 1000))
         } ?? ""
-        let quantity = transaction.quantity
+        let quantity = transaction.purchasedQuantity
 
         self.unfinishedTransactions[transactionId] = transaction
 
