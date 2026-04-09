@@ -148,6 +148,33 @@ import StoreKit
         }
     }
 
+    /// Iterate Transaction.currentEntitlements and emit each as a restored transaction.
+    /// When `skipProcessed` is true, transactions already in processedTransactionIds are skipped
+    /// to avoid duplicate delivery when Transaction.updates already reported them.
+    private func loadCurrentEntitlements(skipProcessed: Bool) async {
+        for await result in Transaction.currentEntitlements {
+            switch result {
+            case .verified(let transaction):
+                if transaction.isUpgraded {
+                    log("entitlement: skipping upgraded id=\(transaction.id) product=\(transaction.productID)")
+                    continue
+                }
+                if skipProcessed {
+                    guard !processedTransactionIds.contains(transaction.id) else {
+                        log("entitlement: skipping already processed id=\(transaction.id)")
+                        continue
+                    }
+                    processedTransactionIds.insert(transaction.id)
+                }
+                unfinishedTransactions[String(transaction.id)] = transaction
+                log("entitlement: id=\(transaction.id) product=\(transaction.productID)")
+                await emitTransactionUpdate(transaction, state: "PaymentTransactionStateRestored", jwsRepresentation: result.jwsRepresentation)
+            case .unverified(let transaction, let error):
+                log("entitlement: REJECTED unverified id=\(transaction.id) product=\(transaction.productID) error=\(error)")
+            }
+        }
+    }
+
     // MARK: - Purchase
 
     @objc func purchase(_ command: CDVInvokedUrlCommand) {
@@ -286,26 +313,8 @@ import StoreKit
 
     @objc func restoreCompletedTransactions(_ command: CDVInvokedUrlCommand) {
         Task {
-            do {
-                for await result in Transaction.currentEntitlements {
-                    switch result {
-                    case .verified(let transaction):
-                        if transaction.isUpgraded {
-                            self.log("restore: skipping upgraded transaction id=\(transaction.id) product=\(transaction.productID)")
-                            continue
-                        }
-                        self.unfinishedTransactions[String(transaction.id)] = transaction
-                        await self.emitTransactionUpdate(transaction, state: "PaymentTransactionStateRestored", jwsRepresentation: result.jwsRepresentation)
-                    case .unverified(let transaction, let error):
-                        self.log("restore: REJECTED unverified id=\(transaction.id) product=\(transaction.productID) error=\(error)")
-                    }
-                }
-                // Signal restore completed
-                self.evalJs("window.storekit2.restoreCompletedTransactionsFinished()")
-            } catch {
-                self.log("Restore failed: \(error.localizedDescription)")
-                self.evalJs("window.storekit2.restoreCompletedTransactionsFailed(6777010)")
-            }
+            await self.loadCurrentEntitlements(skipProcessed: false)
+            self.evalJs("window.storekit2.restoreCompletedTransactionsFinished()")
         }
     }
 
@@ -338,7 +347,7 @@ import StoreKit
         for update in pendingTransactionUpdates {
             log("  pending: id=\(update.transactionId) product=\(update.productId) state=\(update.state) expires=\(update.expirationDate)")
         }
-        // Emit any pending transaction updates that arrived before JS was ready
+        // 1. Flush pending updates from Transaction.updates observer
         for update in pendingTransactionUpdates {
             evalTransactionUpdated(
                 state: update.state, errorCode: update.errorCode, errorText: update.errorText,
@@ -350,9 +359,14 @@ import StoreKit
                 quantity: update.quantity)
         }
         pendingTransactionUpdates.removeAll()
-        evalJs("window.storekit2.lastTransactionUpdated()")
-        let result = CDVPluginResult(status: CDVCommandStatus_OK)
-        commandDelegate.send(result, callbackId: command.callbackId)
+
+        // 2. Load current entitlements (SK2 equivalent of loading the appStoreReceipt)
+        Task {
+            await self.loadCurrentEntitlements(skipProcessed: true)
+            self.evalJs("window.storekit2.lastTransactionUpdated()")
+            let result = CDVPluginResult(status: CDVCommandStatus_OK)
+            self.commandDelegate.send(result, callbackId: command.callbackId)
+        }
     }
 
     // MARK: - Manage Subscriptions / Billing
