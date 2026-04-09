@@ -11,6 +11,10 @@ import StoreKit
     private var isInitialized = false
     private var debugEnabled = false
 
+    /// Transaction IDs already emitted to JS. Prevents duplicate delivery when
+    /// both purchase() and Transaction.updates deliver the same transaction.
+    private var processedTransactionIds: Set<UInt64> = []
+
     // Pending transaction updates received before JS is ready
     private var pendingTransactionUpdates: [(state: String, errorCode: Int, errorText: String,
         transactionId: String, productId: String, transactionReceipt: String,
@@ -26,6 +30,7 @@ import StoreKit
 
     override func dispose() {
         transactionObserverTask?.cancel()
+        processedTransactionIds.removeAll()
         super.dispose()
     }
 
@@ -41,14 +46,17 @@ import StoreKit
     }
 
     private func handleTransactionUpdate(_ result: VerificationResult<Transaction>) async {
-        let jwsRepresentation = result.jwsRepresentation
         switch result {
         case .verified(let transaction):
+            guard !processedTransactionIds.contains(transaction.id) else {
+                log("Transaction.updates: skipping duplicate id=\(transaction.id)")
+                return
+            }
+            processedTransactionIds.insert(transaction.id)
             log("Transaction.updates: verified id=\(transaction.id) product=\(transaction.productID) expires=\(String(describing: transaction.expirationDate))")
-            await emitTransactionUpdate(transaction, state: "PaymentTransactionStatePurchased", jwsRepresentation: jwsRepresentation)
+            await emitTransactionUpdate(transaction, state: "PaymentTransactionStatePurchased", jwsRepresentation: result.jwsRepresentation)
         case .unverified(let transaction, let error):
-            log("Transaction.updates: unverified id=\(transaction.id) product=\(transaction.productID) error=\(error)")
-            await emitTransactionUpdate(transaction, state: "PaymentTransactionStatePurchased", jwsRepresentation: jwsRepresentation)
+            log("Transaction.updates: REJECTED unverified id=\(transaction.id) product=\(transaction.productID) error=\(error)")
         }
     }
 
@@ -124,6 +132,22 @@ import StoreKit
         }
     }
 
+    // MARK: - Transaction Helpers
+
+    /// Finish any unfinished transactions whose subscription has already expired.
+    /// Stale unfinished transactions can block product.purchase() from initiating
+    /// a new purchase flow (confirmed on Apple Developer Forums).
+    private func clearExpiredUnfinishedTransactions() async {
+        for await result in Transaction.unfinished {
+            guard case .verified(let transaction) = result else { continue }
+            if let expirationDate = transaction.expirationDate, expirationDate < Date() {
+                log("clearExpired: finishing expired transaction id=\(transaction.id) product=\(transaction.productID) expired=\(expirationDate)")
+                await transaction.finish()
+                unfinishedTransactions.removeValue(forKey: String(transaction.id))
+            }
+        }
+    }
+
     // MARK: - Purchase
 
     @objc func purchase(_ command: CDVInvokedUrlCommand) {
@@ -176,21 +200,28 @@ import StoreKit
                     ))
                 }
 
+                // Clear expired unfinished transactions that could block the purchase
+                await self.clearExpiredUnfinishedTransactions()
+
                 log("purchase: calling product.purchase() for \(productId)")
                 let purchaseResult = try await product.purchase(options: options)
 
                 switch purchaseResult {
                 case .success(let verification):
-                    let jwsRepresentation = verification.jwsRepresentation
                     switch verification {
                     case .verified(let transaction):
                         log("purchase: success verified id=\(transaction.id) product=\(transaction.productID) expires=\(String(describing: transaction.expirationDate))")
+                        if transaction.productID != productId {
+                            log("purchase: returned product \(transaction.productID) differs from requested \(productId) — likely a subscription downgrade")
+                        }
+                        // Mark as processed to prevent duplicate delivery via Transaction.updates
+                        self.processedTransactionIds.insert(transaction.id)
                         self.unfinishedTransactions[String(transaction.id)] = transaction
-                        await self.emitTransactionUpdate(transaction, state: "PaymentTransactionStatePurchased", jwsRepresentation: jwsRepresentation)
+                        await self.emitTransactionUpdate(transaction, state: "PaymentTransactionStatePurchased", jwsRepresentation: verification.jwsRepresentation)
                     case .unverified(let transaction, let error):
-                        log("purchase: success unverified id=\(transaction.id) product=\(transaction.productID) error=\(error)")
-                        self.unfinishedTransactions[String(transaction.id)] = transaction
-                        await self.emitTransactionUpdate(transaction, state: "PaymentTransactionStatePurchased", jwsRepresentation: jwsRepresentation)
+                        log("purchase: REJECTED unverified id=\(transaction.id) product=\(transaction.productID) error=\(error)")
+                        self.emitPurchaseFailed(productId: productId,
+                            errorCode: 6777010, message: "Transaction verification failed")
                     }
                     let result = CDVPluginResult(status: CDVCommandStatus_OK)
                     self.commandDelegate.send(result, callbackId: command.callbackId)
@@ -257,14 +288,16 @@ import StoreKit
         Task {
             do {
                 for await result in Transaction.currentEntitlements {
-                    let jwsRepresentation = result.jwsRepresentation
                     switch result {
                     case .verified(let transaction):
+                        if transaction.isUpgraded {
+                            self.log("restore: skipping upgraded transaction id=\(transaction.id) product=\(transaction.productID)")
+                            continue
+                        }
                         self.unfinishedTransactions[String(transaction.id)] = transaction
-                        await self.emitTransactionUpdate(transaction, state: "PaymentTransactionStateRestored", jwsRepresentation: jwsRepresentation)
-                    case .unverified(let transaction, _):
-                        self.unfinishedTransactions[String(transaction.id)] = transaction
-                        await self.emitTransactionUpdate(transaction, state: "PaymentTransactionStateRestored", jwsRepresentation: jwsRepresentation)
+                        await self.emitTransactionUpdate(transaction, state: "PaymentTransactionStateRestored", jwsRepresentation: result.jwsRepresentation)
+                    case .unverified(let transaction, let error):
+                        self.log("restore: REJECTED unverified id=\(transaction.id) product=\(transaction.productID) error=\(error)")
                     }
                 }
                 // Signal restore completed
