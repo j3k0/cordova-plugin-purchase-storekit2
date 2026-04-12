@@ -185,6 +185,7 @@ import StoreKit
             return
         }
 
+        let quantity = (command.arguments[1] as? Int) ?? 1
         let applicationUsername = command.arguments[2] as? String
         let discountData = command.arguments[3] as? [String: Any]
 
@@ -195,7 +196,7 @@ import StoreKit
             return
         }
 
-        log("purchase: productId=\(productId) username=\(applicationUsername ?? "nil") hasDiscount=\(discountData != nil)")
+        log("purchase: productId=\(productId) quantity=\(quantity) username=\(applicationUsername ?? "nil") hasDiscount=\(discountData != nil)")
 
         Task {
             do {
@@ -225,6 +226,11 @@ import StoreKit
                         signature: signatureData,
                         timestamp: timestamp
                     ))
+                }
+
+                // Quantity for consumable purchases (validated 1-10 by the TS adapter)
+                if quantity > 1 {
+                    options.insert(.quantity(quantity))
                 }
 
                 // Clear expired unfinished transactions that could block the purchase
