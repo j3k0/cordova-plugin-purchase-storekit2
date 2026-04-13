@@ -31,7 +31,7 @@
         </config-file>
 
         <source-file src="src/ios/StoreKit2Plugin.swift" />
-        <preference name="SwiftVersion" default="5.5" />
+        <preference name="SwiftVersion" default="5.0" />
 
         <framework src="StoreKit.framework" />
     </platform>
