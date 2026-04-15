@@ -375,6 +375,25 @@ import StoreKit
         }
     }
 
+    // MARK: - Storefront
+
+    @objc func getStorefront(_ command: CDVInvokedUrlCommand) {
+        Task {
+            if let storefront = await Storefront.current {
+                let countryCode = storefront.countryCode
+                log("getStorefront: \(countryCode)")
+                let result = CDVPluginResult(status: CDVCommandStatus_OK,
+                    messageAs: countryCode)
+                self.commandDelegate.send(result, callbackId: command.callbackId)
+            } else {
+                log("getStorefront: storefront not available")
+                let result = CDVPluginResult(status: CDVCommandStatus_ERROR,
+                    messageAs: "Storefront not available")
+                self.commandDelegate.send(result, callbackId: command.callbackId)
+            }
+        }
+    }
+
     // MARK: - Manage Subscriptions / Billing
 
     @objc func manageSubscriptions(_ command: CDVInvokedUrlCommand) {
