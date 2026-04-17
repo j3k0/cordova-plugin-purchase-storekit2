@@ -432,7 +432,7 @@ import StoreKit
 
     private func log(_ message: String) {
         if debugEnabled {
-            NSLog("[StoreKit2Plugin] %@", message)
+            NSLog("[CdvPurchase.AppleAppStore.swift] %@", message)
         }
     }
 
