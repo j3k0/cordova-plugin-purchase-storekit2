@@ -1,6 +1,6 @@
 {
   "name": "cordova-plugin-purchase-storekit2",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "StoreKit 2 adapter for cordova-plugin-purchase",
   "cordova": {
     "id": "cordova-plugin-purchase-storekit2",
