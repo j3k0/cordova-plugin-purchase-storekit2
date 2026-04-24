@@ -117,7 +117,7 @@ import StoreKit
 
                 for product in storeProducts {
                     self.products[product.id] = product
-                    validProducts.append(self.productToDictionary(product))
+                    validProducts.append(await self.productToDictionary(product))
                 }
 
                 let response: [Any] = [validProducts, invalidIds]
@@ -436,7 +436,7 @@ import StoreKit
         }
     }
 
-    private func productToDictionary(_ product: Product) -> [String: Any] {
+    private func productToDictionary(_ product: Product) async -> [String: Any] {
         var dict: [String: Any] = [
             "id": product.id,
             "title": product.displayName,
@@ -469,6 +469,10 @@ import StoreKit
                 dict["introPricePeriod"] = intro.period.value
                 dict["introPricePeriodUnit"] = periodUnitToString(intro.period.unit)
                 dict["introPricePaymentMode"] = paymentModeToString(intro.paymentMode)
+                // StoreKit 2 eligibility — honors the user's prior subscription/trial history.
+                // Only meaningful when an intro offer exists; omitted otherwise so older TS
+                // builds that don't know about this field keep their SK1-era behavior.
+                dict["introPriceEligible"] = await subscription.isEligibleForIntroOffer
             }
 
             // Promotional offers (discounts)
