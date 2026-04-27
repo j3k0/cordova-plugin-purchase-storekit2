@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.5
 
 - **Surface `isEligibleForIntroOffer` on loaded products.** `load()` now populates
   `introPriceEligible` on each product dictionary with StoreKit 2's authoritative
