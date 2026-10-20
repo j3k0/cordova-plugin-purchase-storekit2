@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.6
+
+- **fix: send `"UpFront"` for pay-up-front offers.** `paymentModeToString` returned
+  `"PayUpFront"`, a value the iaptic server doesn't recognize. It affected both
+  `introPricePaymentMode` and `discounts[].paymentMode` (introductory and promotional
+  offers). Same fix as [cordova-plugin-purchase #1740](https://github.com/j3k0/cordova-plugin-purchase/pull/1740).
+
 ## 1.0.5
 
 - **Surface `isEligibleForIntroOffer` on loaded products.** `load()` now populates
