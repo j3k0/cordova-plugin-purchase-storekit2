@@ -510,7 +510,7 @@ import StoreKit
     private func paymentModeToString(_ mode: Product.SubscriptionOffer.PaymentMode) -> String {
         switch mode {
         case .payAsYouGo: return "PayAsYouGo"
-        case .payUpFront: return "PayUpFront"
+        case .payUpFront: return "UpFront"
         case .freeTrial: return "FreeTrial"
         default: return "PayAsYouGo"
         }
