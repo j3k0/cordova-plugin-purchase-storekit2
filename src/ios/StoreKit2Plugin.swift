@@ -64,29 +64,29 @@ import StoreKit
 
     @objc func setup(_ command: CDVInvokedUrlCommand) {
         isInitialized = true
-        let result = CDVPluginResult(status: CDVCommandStatus_OK)
+        let result = CDVPluginResult(status: CDVCommandStatus.ok)
         commandDelegate.send(result, callbackId: command.callbackId)
     }
 
     @objc func debug(_ command: CDVInvokedUrlCommand) {
         debugEnabled = true
-        let result = CDVPluginResult(status: CDVCommandStatus_OK)
+        let result = CDVPluginResult(status: CDVCommandStatus.ok)
         commandDelegate.send(result, callbackId: command.callbackId)
     }
 
     @objc func autoFinish(_ command: CDVInvokedUrlCommand) {
         // No-op for now — SK2 transaction finishing is handled explicitly by the JS bridge.
-        let result = CDVPluginResult(status: CDVCommandStatus_OK)
+        let result = CDVPluginResult(status: CDVCommandStatus.ok)
         commandDelegate.send(result, callbackId: command.callbackId)
     }
 
     @objc func canMakePayments(_ command: CDVInvokedUrlCommand) {
         // AppStore.canMakePayments is synchronous in StoreKit 2
         if AppStore.canMakePayments {
-            let result = CDVPluginResult(status: CDVCommandStatus_OK)
+            let result = CDVPluginResult(status: CDVCommandStatus.ok)
             commandDelegate.send(result, callbackId: command.callbackId)
         } else {
-            let result = CDVPluginResult(status: CDVCommandStatus_ERROR,
+            let result = CDVPluginResult(status: CDVCommandStatus.error,
                 messageAs: "Device is not allowed to make payments")
             commandDelegate.send(result, callbackId: command.callbackId)
         }
@@ -96,7 +96,7 @@ import StoreKit
 
     @objc func load(_ command: CDVInvokedUrlCommand) {
         guard let productIds = command.arguments[0] as? [String] else {
-            let result = CDVPluginResult(status: CDVCommandStatus_ERROR,
+            let result = CDVPluginResult(status: CDVCommandStatus.error,
                 messageAs: "Invalid product IDs")
             commandDelegate.send(result, callbackId: command.callbackId)
             return
@@ -121,11 +121,11 @@ import StoreKit
                 }
 
                 let response: [Any] = [validProducts, invalidIds]
-                let result = CDVPluginResult(status: CDVCommandStatus_OK,
+                let result = CDVPluginResult(status: CDVCommandStatus.ok,
                     messageAs: response)
                 self.commandDelegate.send(result, callbackId: command.callbackId)
             } catch {
-                let result = CDVPluginResult(status: CDVCommandStatus_ERROR,
+                let result = CDVPluginResult(status: CDVCommandStatus.error,
                     messageAs: error.localizedDescription)
                 self.commandDelegate.send(result, callbackId: command.callbackId)
             }
@@ -179,7 +179,7 @@ import StoreKit
 
     @objc func purchase(_ command: CDVInvokedUrlCommand) {
         guard let productId = command.arguments[0] as? String else {
-            let result = CDVPluginResult(status: CDVCommandStatus_ERROR,
+            let result = CDVPluginResult(status: CDVCommandStatus.error,
                 messageAs: "Missing product ID")
             commandDelegate.send(result, callbackId: command.callbackId)
             return
@@ -190,7 +190,7 @@ import StoreKit
         let discountData = command.arguments[3] as? [String: Any]
 
         guard let product = products[productId] else {
-            let result = CDVPluginResult(status: CDVCommandStatus_ERROR,
+            let result = CDVPluginResult(status: CDVCommandStatus.error,
                 messageAs: "Product not loaded: \(productId)")
             commandDelegate.send(result, callbackId: command.callbackId)
             return
@@ -256,25 +256,25 @@ import StoreKit
                         self.emitPurchaseFailed(productId: productId,
                             errorCode: 6777010, message: "Transaction verification failed")
                     }
-                    let result = CDVPluginResult(status: CDVCommandStatus_OK)
+                    let result = CDVPluginResult(status: CDVCommandStatus.ok)
                     self.commandDelegate.send(result, callbackId: command.callbackId)
 
                 case .pending:
                     log("purchase: pending for \(productId)")
                     self.emitSimpleUpdate(productId: productId, state: "PaymentTransactionStateDeferred")
-                    let result = CDVPluginResult(status: CDVCommandStatus_OK)
+                    let result = CDVPluginResult(status: CDVCommandStatus.ok)
                     self.commandDelegate.send(result, callbackId: command.callbackId)
 
                 case .userCancelled:
                     log("purchase: userCancelled for \(productId)")
                     self.emitPurchaseFailed(productId: productId,
                         errorCode: 6777006, message: "Payment cancelled")
-                    let result = CDVPluginResult(status: CDVCommandStatus_OK)
+                    let result = CDVPluginResult(status: CDVCommandStatus.ok)
                     self.commandDelegate.send(result, callbackId: command.callbackId)
 
                 @unknown default:
                     log("purchase: unknown result for \(productId)")
-                    let result = CDVPluginResult(status: CDVCommandStatus_ERROR,
+                    let result = CDVPluginResult(status: CDVCommandStatus.error,
                         messageAs: "Unknown purchase result")
                     self.commandDelegate.send(result, callbackId: command.callbackId)
                 }
@@ -282,7 +282,7 @@ import StoreKit
                 log("purchase: error for \(productId): \(error.localizedDescription)")
                 self.emitPurchaseFailed(productId: productId,
                     errorCode: 6777010, message: error.localizedDescription)
-                let result = CDVPluginResult(status: CDVCommandStatus_ERROR,
+                let result = CDVPluginResult(status: CDVCommandStatus.error,
                     messageAs: error.localizedDescription)
                 self.commandDelegate.send(result, callbackId: command.callbackId)
             }
@@ -293,7 +293,7 @@ import StoreKit
 
     @objc func finishTransaction(_ command: CDVInvokedUrlCommand) {
         guard let transactionId = command.arguments[0] as? String else {
-            let result = CDVPluginResult(status: CDVCommandStatus_ERROR,
+            let result = CDVPluginResult(status: CDVCommandStatus.error,
                 messageAs: "Missing transaction ID")
             commandDelegate.send(result, callbackId: command.callbackId)
             return
@@ -305,11 +305,11 @@ import StoreKit
                 await transaction.finish()
                 log("finishTransaction: finished id=\(transactionId)")
                 self.unfinishedTransactions.removeValue(forKey: transactionId)
-                let result = CDVPluginResult(status: CDVCommandStatus_OK)
+                let result = CDVPluginResult(status: CDVCommandStatus.ok)
                 self.commandDelegate.send(result, callbackId: command.callbackId)
             }
         } else {
-            let result = CDVPluginResult(status: CDVCommandStatus_ERROR,
+            let result = CDVPluginResult(status: CDVCommandStatus.error,
                 messageAs: "Cannot finish transaction [#CdvPurchase:100]")
             commandDelegate.send(result, callbackId: command.callbackId)
         }
@@ -332,7 +332,7 @@ import StoreKit
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
         let numericVersion = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0"
         let response: [Any] = ["", bundleId, version, Int(numericVersion) ?? 0, ""]
-        let result = CDVPluginResult(status: CDVCommandStatus_OK, messageAs: response)
+        let result = CDVPluginResult(status: CDVCommandStatus.ok, messageAs: response)
         commandDelegate.send(result, callbackId: command.callbackId)
     }
 
@@ -342,7 +342,7 @@ import StoreKit
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
         let numericVersion = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0"
         let response: [Any] = ["", bundleId, version, Int(numericVersion) ?? 0, ""]
-        let result = CDVPluginResult(status: CDVCommandStatus_OK, messageAs: response)
+        let result = CDVPluginResult(status: CDVCommandStatus.ok, messageAs: response)
         commandDelegate.send(result, callbackId: command.callbackId)
     }
 
@@ -370,7 +370,7 @@ import StoreKit
         Task {
             await self.loadCurrentEntitlements(skipProcessed: true)
             self.evalJs("window.storekit2.lastTransactionUpdated()")
-            let result = CDVPluginResult(status: CDVCommandStatus_OK)
+            let result = CDVPluginResult(status: CDVCommandStatus.ok)
             self.commandDelegate.send(result, callbackId: command.callbackId)
         }
     }
@@ -382,12 +382,12 @@ import StoreKit
             if let storefront = await Storefront.current {
                 let countryCode = storefront.countryCode
                 log("getStorefront: \(countryCode)")
-                let result = CDVPluginResult(status: CDVCommandStatus_OK,
+                let result = CDVPluginResult(status: CDVCommandStatus.ok,
                     messageAs: countryCode)
                 self.commandDelegate.send(result, callbackId: command.callbackId)
             } else {
                 log("getStorefront: storefront not available")
-                let result = CDVPluginResult(status: CDVCommandStatus_ERROR,
+                let result = CDVPluginResult(status: CDVCommandStatus.error,
                     messageAs: "Storefront not available")
                 self.commandDelegate.send(result, callbackId: command.callbackId)
             }
@@ -401,13 +401,13 @@ import StoreKit
             if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
                 try? await AppStore.showManageSubscriptions(in: scene)
             }
-            let result = CDVPluginResult(status: CDVCommandStatus_OK)
+            let result = CDVPluginResult(status: CDVCommandStatus.ok)
             self.commandDelegate.send(result, callbackId: command.callbackId)
         }
     }
 
     @objc func manageBilling(_ command: CDVInvokedUrlCommand) {
-        let result = CDVPluginResult(status: CDVCommandStatus_OK)
+        let result = CDVPluginResult(status: CDVCommandStatus.ok)
         commandDelegate.send(result, callbackId: command.callbackId)
     }
 
@@ -419,11 +419,11 @@ import StoreKit
                     try? await AppStore.presentOfferCodeRedeemSheet(in: scene)
                 }
             }
-            let result = CDVPluginResult(status: CDVCommandStatus_OK)
+            let result = CDVPluginResult(status: CDVCommandStatus.ok)
             self.commandDelegate.send(result, callbackId: command.callbackId)
         }
         #else
-        let result = CDVPluginResult(status: CDVCommandStatus_OK)
+        let result = CDVPluginResult(status: CDVCommandStatus.ok)
         commandDelegate.send(result, callbackId: command.callbackId)
         #endif
     }
