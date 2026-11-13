@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.0
+
+- **fix: remove 27 deprecation warnings with cordova-ios 8.** Replaced the legacy
+  `CDVCommandStatus_OK` / `CDVCommandStatus_ERROR` constants with the Swift enum
+  cases `CDVCommandStatus.ok` / `CDVCommandStatus.error`, which cordova-ios 8
+  deprecation notes explicitly recommend. Both cases exist since cordova-ios 7.0.0,
+  the plugin's declared minimum, so no version guard is needed
+  ([PR #5](https://github.com/j3k0/cordova-plugin-purchase-storekit2/pull/5)).
+- **minor version bump** as a precaution: while the change is verified against the
+  cordova-ios 7.0.0 and 8.0.0 headers, building against unofficial/patched older
+  Cordova versions could behave differently.
+
 ## 1.0.6
 
 - **fix: send `"UpFront"` for pay-up-front offers.** `paymentModeToString` returned
