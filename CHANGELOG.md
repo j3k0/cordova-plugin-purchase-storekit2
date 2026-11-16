@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- **feat: `redeemCode` — result-based offer code redemption on iOS 27+.** Uses
+  `AppStore.presentOfferCodeRedeemSheet(from:options:)` (works on macCatalyst too,
+  unlike the old `(in:)` path). The redeemed transaction is ingested exactly like
+  a purchase (`processedTransactionIds` + `emitTransactionUpdate`, delivered to JS
+  through the usual `approved` path); the callback resolves on success and rejects
+  with a `[errorCode, message]` array on failure or user cancellation, reusing the
+  existing CdvPurchase error codes (userCancelled → 6777006 PAYMENT_CANCELLED,
+  networkError → 6777014 COMMUNICATION, notEntitled / notAvailableInStorefront /
+  unsupported → 6777008 PAYMENT_NOT_ALLOWED, the rest → 6777010 UNKNOWN). Below
+  iOS 27 the sheet opens fire-and-forget on the deprecated `(in:)` API and the
+  callback resolves with no result — no cancel or error reporting (decided,
+  FOV-511b). The iOS 27 branch is gated on `#if compiler(>=6.4)` (Xcode 27 SDK);
+  apps built with older Xcode versions always take the fire-and-forget path.
+  `RedeemOption` exists as of iOS 27 but the SDK defines no values yet — the
+  options array is accepted for forward compatibility and ignored.
+
 ## 1.1.0
 
 - **fix: remove 27 deprecation warnings with cordova-ios 8.** Replaced the legacy
