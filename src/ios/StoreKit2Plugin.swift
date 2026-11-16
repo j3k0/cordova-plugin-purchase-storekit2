@@ -428,6 +428,113 @@ import StoreKit
         #endif
     }
 
+    /**
+     * Redeem an offer code.
+     *
+     * iOS 27+ uses the result-based `presentOfferCodeRedeemSheet(from:options:)`
+     * (the `(from:)` overload works on macCatalyst too, unlike the old `(in:)`
+     * path). The verified transaction is ingested exactly like a purchase —
+     * `processedTransactionIds` + `emitTransactionUpdate` — so JS receives it
+     * through the usual `approved` path; the call then resolves. Failures and
+     * user cancellation reject with a `[errorCode, message]` array (CdvPurchase
+     * error codes, base 6777000). Below iOS 27 the sheet opens fire-and-forget on
+     * the deprecated `(in:)` API and the call resolves when the sheet is
+     * dismissed, with no result — no cancel or error reporting.
+     *
+     * The iOS 27 API only exists in the iOS 27 SDK (Xcode 27 / Swift 6.4);
+     * `#available` alone can't compile against older SDKs, so the result-based
+     * branch is additionally gated on the compiler version. Apps built with
+     * older Xcode versions always take the fire-and-forget path.
+     */
+    @objc func redeemCode(_ command: CDVInvokedUrlCommand) {
+        // RedeemOption values — the iOS 27 SDK defines none yet; the array is
+        // accepted from JS for forward compatibility and ignored.
+        let redeemOptions = (command.arguments[0] as? [String]) ?? []
+        log("redeemCode: options=\(redeemOptions)")
+        Task { @MainActor in
+            #if compiler(>=6.4)
+            if #available(iOS 27.0, *) {
+                guard let viewController = self.viewController else {
+                    self.sendRedeemResult(command, error: (6777010, "No view controller to present the redemption sheet from"))
+                    return
+                }
+                do {
+                    let result = try await AppStore.presentOfferCodeRedeemSheet(from: viewController, options: [])
+                    switch result {
+                    case .verified(let transaction):
+                        // Ingest through the same path as purchase(): mark as processed to
+                        // prevent duplicate delivery via Transaction.updates, then emit.
+                        self.processedTransactionIds.insert(transaction.id)
+                        await self.emitTransactionUpdate(transaction, state: "PaymentTransactionStatePurchased", jwsRepresentation: result.jwsRepresentation)
+                        self.commandDelegate.send(CDVPluginResult(status: CDVCommandStatus.ok), callbackId: command.callbackId)
+                    case .unverified(let transaction, let error):
+                        self.log("redeemCode: REJECTED unverified id=\(transaction.id) product=\(transaction.productID) error=\(error)")
+                        self.sendRedeemResult(command, error: (6777010, "unverified(\(error))"))
+                    }
+                } catch {
+                    let mapping = redeemErrorMapping(error)
+                    self.log("redeemCode: failed code=\(mapping.code) error=\(error)")
+                    self.sendRedeemResult(command, error: mapping)
+                }
+            } else {
+                await self.presentRedeemSheetFireAndForget()
+                self.commandDelegate.send(CDVPluginResult(status: CDVCommandStatus.ok), callbackId: command.callbackId)
+            }
+            #else
+            await self.presentRedeemSheetFireAndForget()
+            self.commandDelegate.send(CDVPluginResult(status: CDVCommandStatus.ok), callbackId: command.callbackId)
+            #endif
+        }
+    }
+
+    /// Pre-iOS 27 fallback: fire-and-forget on the deprecated sheet API
+    /// (decided, FOV-511b) — same behavior as presentCodeRedemptionSheet: the
+    /// call completes when the sheet is dismissed, with no result. The Catalyst
+    /// guard stays — the old `(in:)` path throws StoreKitError.unknown there.
+    @MainActor
+    private func presentRedeemSheetFireAndForget() async {
+        #if !targetEnvironment(macCatalyst)
+        if #available(iOS 16.0, *) {
+            if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                try? await AppStore.presentOfferCodeRedeemSheet(in: scene)
+            }
+        }
+        #endif
+    }
+
+    /// Send the redeemCode callback: ok, or an error carrying a [code, message] array.
+    private func sendRedeemResult(_ command: CDVInvokedUrlCommand, error: (code: Int, message: String)? = nil) {
+        let result: CDVPluginResult
+        if let error = error {
+            result = CDVPluginResult(status: CDVCommandStatus.error, messageAs: [error.code, error.message] as [Any])
+        } else {
+            result = CDVPluginResult(status: CDVCommandStatus.ok)
+        }
+        commandDelegate.send(result, callbackId: command.callbackId)
+    }
+
+    #if compiler(>=6.4)
+    /// Map a StoreKit redemption error to a (CdvPurchase error code, message) pair.
+    /// Reuses the existing purchase error codes (base 6777000):
+    /// userCancelled → PAYMENT_CANCELLED (6777006), networkError → COMMUNICATION (6777014),
+    /// notEntitled / notAvailableInStorefront / unsupported → PAYMENT_NOT_ALLOWED (6777008),
+    /// everything else → UNKNOWN (6777010). The message carries the Apple case name.
+    @available(iOS 27.0, *)
+    private func redeemErrorMapping(_ error: Error) -> (code: Int, message: String) {
+        let name = String(describing: error)
+        if let storeKitError = error as? StoreKitError {
+            switch storeKitError {
+            case .userCancelled: return (6777006, name)
+            case .networkError: return (6777014, name)
+            case .notEntitled, .notAvailableInStorefront, .unsupported: return (6777008, name)
+            case .systemError, .unknown, .invalidPresentationContext: return (6777010, name)
+            @unknown default: return (6777010, name)
+            }
+        }
+        return (6777010, name)
+    }
+    #endif
+
     // MARK: - Helpers
 
     private func log(_ message: String) {
